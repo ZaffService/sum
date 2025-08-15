@@ -478,6 +478,9 @@ document.addEventListener('DOMContentLoaded', () => {
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/js/all.min.js"></script>
 
+<!-- Script pour la génération de facture -->
+<script type="module" src="./../dist/services/FactureGenerator.js"></script>
+
 <!-- Ensuite le script principal -->
 <script type="module" src="./../dist/enregistrement-colis.js"></script>
 

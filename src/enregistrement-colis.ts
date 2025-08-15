@@ -1,4 +1,6 @@
 import { ColisManager } from "./services/ColisManager.js"
+import { FactureGenerator, type IFactureData } from "./services/FactureGenerator.js"
+import type { ICargaison } from "./models/Icargaison"
 interface ColisData {
   type: string
   poids: number
@@ -205,6 +207,8 @@ class EnregistrementColis {
         this.showSuccessModal(
           "Colis enregistré avec succès !",
           `Le colis "${colisData.libelle}" (${colisData.poids}kg)${destinataireInfo} a été ajouté à la cargaison ${cargaisonId}`,
+          result,
+          cargaisonId
         )
 
         // Réinitialiser le formulaire
@@ -469,8 +473,142 @@ class EnregistrementColis {
     console.log("Cargaison sélectionnée, prêt pour confirmation")
   }
 
-  private showSuccessModal(title: string, message: string): void {
+  private async showSuccessModal(title: string, message: string, colisResult?: any, cargaisonId?: string): Promise<void> {
+    // Créer le toast de succès
     this.creerToast("success", title, message)
+    
+    // Si on a les données nécessaires, proposer de générer la facture
+    if (colisResult && cargaisonId) {
+      setTimeout(() => {
+        this.proposerGenerationFacture(colisResult, cargaisonId)
+      }, 2000) // Attendre 2 secondes après le toast
+    }
+  }
+
+  private async proposerGenerationFacture(colisResult: any, cargaisonId: string): Promise<void> {
+    try {
+      // Récupérer les données de la cargaison
+      const response = await fetch(`http://localhost:3000/cargaisons/${cargaisonId}`)
+      if (!response.ok) {
+        throw new Error('Impossible de récupérer les données de la cargaison')
+      }
+      
+      const cargaison: ICargaison = await response.json()
+      
+      // Créer le modal de proposition de facture
+      this.creerModalFacture(colisResult, cargaison)
+      
+    } catch (error) {
+      console.error('Erreur lors de la récupération des données pour la facture:', error)
+      this.showError('Impossible de générer la facture automatiquement')
+    }
+  }
+
+  private creerModalFacture(colis: any, cargaison: ICargaison): void {
+    const modal = document.createElement('div')
+    modal.className = 'fixed inset-0 bg-gray-900/80 backdrop-blur-sm flex items-center justify-center z-50 transition-opacity duration-300'
+    modal.id = 'facture-proposal-modal'
+    
+    modal.innerHTML = `
+      <div class="bg-gray-800 rounded-xl p-6 max-w-md w-full mx-4 border border-cyan-400/30">
+        <div class="text-center mb-6">
+          <div class="w-16 h-16 bg-green-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
+            <i class="fas fa-receipt text-green-400 text-2xl"></i>
+          </div>
+          <h3 class="text-xl font-bold text-white mb-2">Colis enregistré avec succès !</h3>
+          <p class="text-gray-400">Voulez-vous générer la facture maintenant ?</p>
+        </div>
+        
+        <div class="bg-gray-700/50 rounded-lg p-4 mb-6">
+          <div class="text-sm text-gray-300 space-y-1">
+            <p><span class="font-semibold">Colis:</span> ${colis.libelle}</p>
+            <p><span class="font-semibold">Code:</span> ${colis.codeDeSuivi}</p>
+            <p><span class="font-semibold">Poids:</span> ${colis.poids} kg</p>
+            <p><span class="font-semibold">Cargaison:</span> ${cargaison.numero}</p>
+          </div>
+        </div>
+        
+        <div class="flex space-x-3">
+          <button id="skip-facture" class="flex-1 px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-500 transition-colors">
+            Plus tard
+          </button>
+          <button id="generate-facture" class="flex-1 px-4 py-2 bg-cyan-500 text-white rounded-lg hover:bg-cyan-600 transition-colors">
+            <i class="fas fa-receipt mr-2"></i>Générer
+          </button>
+        </div>
+      </div>
+    `
+    
+    document.body.appendChild(modal)
+    
+    // Événements
+    const skipBtn = modal.querySelector('#skip-facture')
+    const generateBtn = modal.querySelector('#generate-facture')
+    
+    skipBtn?.addEventListener('click', () => {
+      modal.remove()
+    })
+    
+    generateBtn?.addEventListener('click', () => {
+      this.genererFacture(colis, cargaison)
+      modal.remove()
+    })
+    
+    // Fermer en cliquant à l'extérieur
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) {
+        modal.remove()
+      }
+    })
+  }
+
+  private genererFacture(colis: any, cargaison: ICargaison): void {
+    try {
+      // Calculer le prix (logique simplifiée)
+      const prixBase = 10000 // Prix minimum
+      const prixCalcule = Math.max(prixBase, colis.poids * 100 * (cargaison.distance / 1000))
+      
+      // Récupérer les données du formulaire pour l'expéditeur
+      const nomInput = document.getElementById("client-nom") as HTMLInputElement
+      const prenomInput = document.getElementById("client-prenom") as HTMLInputElement
+      const telephoneInput = document.getElementById("client-phone") as HTMLInputElement
+      const emailInput = document.getElementById("client-email") as HTMLInputElement
+      const adresseInput = document.getElementById("client-address") as HTMLInputElement
+      
+      const factureData: IFactureData = {
+        colis: {
+          codeDeSuivi: colis.codeDeSuivi || colis.id,
+          libelle: colis.libelle,
+          poids: colis.poids,
+          type: colis.type,
+          etatColis: colis.etatColis || 'ARCHIVE'
+        },
+        cargaison: cargaison,
+        expediteur: {
+          nom: nomInput?.value || 'Non spécifié',
+          prenom: prenomInput?.value || 'Non spécifié',
+          telephone: telephoneInput?.value || 'Non spécifié',
+          adresse: adresseInput?.value || 'Non spécifiée',
+          email: emailInput?.value || undefined
+        },
+        destinataire: {
+          nom: colis.destinataire?.nom || 'Non spécifié',
+          prenom: colis.destinataire?.prenom || 'Non spécifié',
+          telephone: colis.destinataire?.telephone || 'Non spécifié',
+          adresse: colis.destinataire?.adresse || 'Non spécifiée'
+        },
+        prixCalcule: prixCalcule
+      }
+      
+      // Générer la facture
+      FactureGenerator.genererFacturePDF(factureData)
+      
+      this.showSuccess('Facture générée avec succès !')
+      
+    } catch (error) {
+      console.error('Erreur lors de la génération de la facture:', error)
+      this.showError('Erreur lors de la génération de la facture')
+    }
   }
 
   private showError(message: string): void {

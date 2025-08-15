@@ -1,8 +1,16 @@
 import type { IColis } from "../models/IColis"
 import type { ICargaison } from "../models/Icargaison"
 
+export interface IFactureDataColis {
+  codeDeSuivi: string
+  libelle: string
+  poids: number
+  type: string
+  etatColis: string
+}
+
 export interface IFactureData {
-  colis: IColis
+  colis: IFactureDataColis
   cargaison: ICargaison
   expediteur: {
     nom: string
@@ -137,6 +145,9 @@ export class FactureGenerator {
                 <p class="text-sm text-gray-700">
                     <strong>Note:</strong> Conservez ce reçu précieusement. Il vous sera demandé lors de la récupération de votre colis.
                     Le code de suivi sera envoyé au destinataire une fois la cargaison arrivée à destination.
+                </p>
+                <p class="text-sm text-gray-700 mt-2">
+                    <strong>Prix calculé:</strong> ${data.prixCalcule.toLocaleString()} FCFA (minimum 10.000 FCFA)
                 </p>
             </div>
         `
